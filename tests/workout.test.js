@@ -69,11 +69,11 @@ test('"last time" for an exercise: the last real workout, else the 2022 archive'
   ok(W.lastTime(s, 'abs') === null, 'a time with no sets written down is no "last time"');
 });
 
-test('ticking a set marks the day for Life Hub, with times; finishing keeps only ticked sets', () => {
+test('starting marks the day for Life Hub, with times; ticks move it on; finishing keeps only ticked sets', () => {
   let s = W.startWorkout(log(), { type: 'pull', day: '2026-10-16', now: T0, id: 'n' });
-  eq(s.history['2026-10-16'], undefined, 'starting alone is no workout');
+  eq(s.history['2026-10-16'], { firstAt: T0, lastAt: T0 }, 'pressing Start is going');
   s = W.toggleSet(s, 'n', 0, 0, T0 + 60000);
-  eq(s.history['2026-10-16'], { firstAt: T0 + 60000, lastAt: T0 + 60000 });
+  eq(s.history['2026-10-16'], { firstAt: T0, lastAt: T0 + 60000 });
   s = W.toggleSet(s, 'n', 1, 0, T0 + 600000);
   eq(s.history['2026-10-16'].lastAt, T0 + 600000);
   s = W.finishWorkout(s, 'n', T0 + 3600000);
@@ -83,16 +83,20 @@ test('ticking a set marks the day for Life Hub, with times; finishing keeps only
   eq(x.items.map((it) => it.sets), [[{ r: 13, kg: 27 }], [{ r: 13, kg: 39 }]], 'unticked sets dropped, no done flags');
 });
 
-test('finishing with nothing ticked leaves no workout and no day', () => {
+test('finishing with nothing ticked leaves no workout, but the day still counts', () => {
   let s = W.startWorkout(log(), { type: 'pull', day: '2026-10-16', now: T0, id: 'n' });
-  s = W.finishWorkout(s, 'n', T0);
+  s = W.finishWorkout(s, 'n', T0 + 1);
   eq(s.sessions.n, undefined);
+  eq(s.history['2026-10-16'], { firstAt: T0, lastAt: T0 });
+});
+
+test('discarding a just-started workout takes the day back out', () => {
+  const s = W.deleteSession(W.startWorkout(log(), { type: 'pull', day: '2026-10-16', now: T0, id: 'n' }), 'n');
   eq(s.history['2026-10-16'], undefined);
 });
 
 test('a workout logged afterwards marks its date without times (Life Hub counts the date)', () => {
-  let s = W.startWorkout(log(), { type: 'legs', day: '2026-10-14', now: T0, id: 'n', live: false });
-  s = W.toggleSet(s, 'n', 0, 0, T0);
+  const s = W.startWorkout(log(), { type: 'legs', day: '2026-10-14', now: T0, id: 'n', live: false });
   eq(s.history['2026-10-14'], { added: T0 });
 });
 

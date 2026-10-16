@@ -11,7 +11,8 @@
 //              open = in progress: only its sets with `done` count. Finishing drops the rest.
 //              archive = the 2022 Notes log: browsable, never "last time" while a newer one exists.
 //   history    { [day]: { firstAt, lastAt } | { added } } the days trained, which Life Hub reads
-//              to tick its Gym habit (life-hub/src/core/links.js): times when logged live,
+//              to tick its Gym habit (life-hub/src/core/links.js), from the moment a workout
+//              is started; deleting the day's last workout takes it out. Times when live,
 //              `added` for a day logged afterwards (Life Hub then counts the date itself).
 
 import { addDays, weekStart } from './dates.js';
@@ -231,10 +232,13 @@ export function startWorkout(s, { type, day, now, id = newSessionId(day), live =
     }))
     : [];
   next.sessions[id] = { day, type, open: true, startedAt: now, items, ...(live ? {} : { late: true }) };
+  // Starting is going: Life Hub ticks Gym for the day straight away (Fred, 16 Oct).
+  markDay(next, next.sessions[id], now, live);
   return next;
 }
 
-// Done: only ticked sets stay. A workout with nothing ticked disappears.
+// Done: only ticked sets stay. A workout with nothing ticked disappears, but
+// the day stays trained: Fred went. Only deleting a workout takes the day back.
 export function finishWorkout(s, id, now) {
   const session = s.sessions[id];
   if (!session) return s;
@@ -247,7 +251,6 @@ export function finishWorkout(s, id, now) {
   for (const it of x.items) if (it.group && x.items.filter((o) => o.group === it.group).length < 2) delete it.group;
   if (!x.items.length) {
     delete next.sessions[id];
-    dropDay(next, session.day);
     return next;
   }
   delete x.open;
@@ -256,8 +259,9 @@ export function finishWorkout(s, id, now) {
   return next;
 }
 
+// The day comes out of the history once no workout of it is left.
 function dropDay(next, day) {
-  const still = Object.values(next.sessions).some((x) => x.day === day && !x.archive && x.items.some((it) => countedSets(x, it).length));
+  const still = Object.values(next.sessions).some((x) => x.day === day && !x.archive);
   if (!still && next.history) delete next.history[day];
 }
 
@@ -396,7 +400,7 @@ export const moveSession = (s, id, day, now) => withSession(s, id, (x, next) => 
   if (old === day) return;
   x.day = day;
   dropDay(next, old);
-  if (x.items.some((it) => countedSets(x, it).length)) markDay(next, x, now, false);
+  markDay(next, x, now, false);
 });
 
 export const setType = (s, id, type) => withSession(s, id, (x) => { x.type = type; });

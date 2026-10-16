@@ -130,7 +130,8 @@ function finish() {
   const x = get().sessions[id];
   const open = x.items.reduce((n, it) => n + it.sets.filter((st) => !st.done).length, 0);
   const done = x.items.reduce((n, it) => n + it.sets.filter((st) => st.done).length, 0);
-  if (!done && !confirm('Nothing is ticked, so nothing would be saved. Throw this workout away?')) return;
+  if (!done && !confirm('Nothing is ticked, so no sets are saved. Today still counts as a gym day in Life Hub.\n\n' +
+    '(Didn’t go after all? Use “Discard this workout” in the ⋯ menu instead.)\n\nFinish anyway?')) return;
   if (done && open && !confirm(`${open} ${open === 1 ? 'set isn’t' : 'sets aren’t'} ticked and won’t be saved. Finish anyway?`)) return;
   act.finish(id);
   stopRest();
@@ -141,7 +142,7 @@ function removeWorkout() {
   const id = sid();
   const x = get().sessions[id];
   if (!x) return;
-  const what = x.open ? 'Throw away this workout? Nothing of it is saved.' : 'Delete this workout? This can’t be undone.';
+  const what = x.open ? 'Throw away this workout? Nothing of it is saved, and the day no longer counts as a gym day here. (If Life Hub already ticked it, untick it there.)' : 'Delete this workout? This can’t be undone.';
   if (!confirm(what)) return;
   act.remove(id);
   stopRest();

@@ -2,7 +2,7 @@
 
 Fred's workout log, replacing his Apple Notes "Gym Progress Tracker". Phone
 first (he only logs on the phone, at the gym); the laptop runs the same app.
-Connected to Life Hub (`../life-hub`): a ticked set ticks Life Hub's **Gym**
+Connected to Life Hub (`../life-hub`): starting a workout ticks Life Hub's **Gym**
 habit (4× a week, a week goal, so it counts for Luna's jar).
 
 Single user, non-technical: explain things plainly, in prose.
@@ -93,8 +93,10 @@ Screens by hash: `#/` home, `#/w/<session id>`, `#/history`, `#/x/<exercise id>`
   `rest` (seconds, default 90), `kind: 'assisted'` (less kg is harder: PRs invert).
 - PR = a set whose Epley score (kg × (1 + reps/30)) beats every earlier real
   workout of that exercise; never on the first time. No-kg sets score by reps, below any weighted set.
-- `history[day]` is what Life Hub reads: `{ firstAt, lastAt }` from live
-  ticks; `{ added }` for a workout logged afterwards ("Log an earlier day",
+- `history[day]` is what Life Hub reads, written the moment a workout is
+  **started** (Fred, 16 Oct: pressing Start = went). Finishing with nothing
+  ticked keeps the day; only deleting/discarding the day's last workout takes
+  it out (Life Hub's tick then stays until unticked there). `{ firstAt, lastAt }` when live; `{ added }` for a workout logged afterwards ("Log an earlier day",
   `late: true`) or moved to another date, so Life Hub counts the date itself.
 
 Online, `users/{uid}/gym/`: `main` (types, exercises) · `log-YYYY`

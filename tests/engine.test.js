@@ -79,7 +79,7 @@ test('a set ticked on the phone reaches the laptop, and its day is online for Li
   await until(() => laptop.engine.get().sessions['2026-10-16~p'], 'the laptop sees the workout');
   eq(laptop.engine.get().sessions['2026-10-16~p'].items[0].sets[0], { r: 13, kg: 39, done: true });
   await until(() => online(server)['2026'], 'the year of days');
-  eq(online(server)['2026'].history['2026-10-16'], { firstAt: T0 + 1000, lastAt: T0 + 1000 });
+  eq(online(server)['2026'].history['2026-10-16'], { firstAt: T0, lastAt: T0 + 1000 }, 'from pressing Start');
   ok(same(fromDocs(online(server)), phone.engine.get()));
 });
 
