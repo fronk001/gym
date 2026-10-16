@@ -1,0 +1,8 @@
+# Fred's Notes log and what the importer makes of it: personal, never published.
+import/
+src/data/seed.local.js
+
+dist/
+__pycache__/
+screenshots/
+.claude/

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!-- Checks the published copy's offline copy (dist/, sw.js): it installs with
+     every file, the app then opens with the server out of reach, and the dev
+     copy in src/ never installs one. Build first:
+       py tools/build.py
+       py tools/run_tests.py tools/sw-check.html -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Offline copy check</title></head>
+<body>
+<pre id="out">running…</pre>
+<iframe id="f" title="app" style="width:1440px;height:1000px;border:0"></iframe>
+<script type="module">
+const f = document.getElementById('f');
+const log = [];
+const check = (name, cond) => log.push({ name, ok: !!cond });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(fn, what, ms = 8000) {
+  for (const t = Date.now(); Date.now() - t < ms; await sleep(50)) {
+    const v = await fn();
+    if (v) return v;
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+const go = (url) => new Promise((r) => { f.addEventListener('load', r, { once: true }); f.src = url; });
+const drawn = () => until(() => f.contentDocument && f.contentDocument.querySelector('.home'), 'the home screen');
+const reachable = (url) => fetch(url, { cache: 'no-store' }).then((r) => r.ok, () => false);
+// Keep a request open until done, so headless Edge waits in real time. (If a
+// check goes badly wrong the page can stall; run_tests.py then reports FAIL.)
+let done = false;
+(async () => { while (!done) await fetch('/__wait').catch(() => {}); })();
+
+try {
+  const html = await fetch('/dist/index.html', { cache: 'no-store' }).then((r) => (r.ok ? r.text() : ''));
+  if (!html) throw new Error('no dist/ — run py tools/build.py first');
+  const version = (html.match(/name="app-version" content="([^"]+)"/) || [])[1];
+  check('the published page carries a version', version && version !== 'dev');
+  check('the personal starting set is not published', !(await reachable('/dist/data/seed.local.js')));
+  const manifest = await fetch('/dist/manifest.webmanifest').then((r) => r.json());
+  const icons = await Promise.all(manifest.icons.map((i) => reachable(`/dist/${i.src}`)));
+  check('the manifest reads, and its icons exist', manifest.display === 'standalone' && icons.every(Boolean));
+  check('the iPhone icon exists', await reachable('/dist/icons/apple-touch-icon.png'));
+
+  // The dev copy: no service worker, ever.
+  await go('../src/index.html?demo&reset&today=2026-10-16');
+  await drawn();
+  await sleep(300);
+  check('src/ registers no offline copy', (await navigator.serviceWorker.getRegistrations()).length === 0);
+
+  // First visit to the published copy: it draws, and the offline copy installs and takes over.
+  await go('../dist/index.html?demo&reset&today=2026-10-16');
+  await drawn();
+  await until(() => f.contentWindow.navigator.serviceWorker.controller, 'the offline copy to take over');
+  await sleep(300);
+  const regs = await navigator.serviceWorker.getRegistrations();
+  check('dist/ registers one offline copy, for dist/ only', regs.length === 1 && regs[0].scope.endsWith('/dist/'));
+  check('the first install does not reload the page', f.contentWindow.performance.getEntriesByType('navigation')[0].type === 'navigate');
+  const sw = await fetch('/dist/sw.js', { cache: 'no-store' }).then((r) => r.text());
+  const files = JSON.parse(sw.match(/const FILES = (\[[\s\S]*?\]);/)[1]);
+  const cache = await caches.open(`gym-${version}`);
+  const missing = [];
+  for (const file of files) if (!(await cache.match(new URL(file, `${location.origin}/dist/`).href))) missing.push(file);
+  check(`every file is kept on the device (${files.length})${missing.length ? `; missing ${missing.join(', ')}` : ''}`,
+    files.length > 15 && !missing.length);
+  check('the list covers the app, the fonts and the demo', ['./', 'index.html', 'ui/app.js', 'fonts/fraunces-latin.woff2', 'data/demo.js'].every((x) => files.includes(x)));
+
+  // Now the server is out of reach: the app opens from the copy, data and all.
+  // Start a workout and tick its first set, then lose the connection.
+  f.contentDocument.querySelector('.feature [data-act=start]').click();
+  await until(() => f.contentDocument.querySelector('[data-act=tick]'), 'the workout');
+  f.contentDocument.querySelector('[data-act=tick]').click();
+  await fetch('/__offline?on');
+  check('the published copy really is out of reach', !(await reachable('/dist/app.css')));
+  await go('../dist/index.html?demo&today=2026-10-16#/'); // no ?reset this time: keep the tick
+  await drawn();
+  const doc = f.contentDocument;
+  check('offline, the app opens and draws the home screen', !!doc.querySelector('.home .feature'));
+  const faces = () => [...doc.fonts].filter((x) => x.status === 'loaded').map((x) => x.family.replace(/"/g, ''));
+  await until(() => faces().includes('Fraunces'), 'the fonts').catch(() => {});
+  check(`offline, the fonts come from the copy (${faces().join(', ') || 'none'})`,
+    faces().includes('Fraunces') && ![...doc.fonts].some((x) => x.status === 'error'));
+  check('offline, the workout and its ticked set are still there', /1 set done/.test(doc.querySelector('.feature').textContent));
+  await fetch('/__offline?off');
+} catch (e) {
+  log.push({ name: e.message, ok: false });
+  await fetch('/__offline?off');
+}
+
+for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+done = true;
+const failed = log.filter((x) => !x.ok);
+document.getElementById('out').textContent = `${failed.length ? 'FAIL' : 'PASS'} ${log.length - failed.length}/${log.length}\n` +
+  failed.map((x) => `✗ ${x.name}`).join('\n');
+</script>
+</body>
+</html>

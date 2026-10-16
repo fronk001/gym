@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<!-- UI smoke test: loads the real app in a phone-sized frame, does a workout
+     on demo data (pre-filled sets, +/−, ticks, the rest timer, a superset,
+     adding an exercise, finishing), then syncs a "laptop" and a "phone" frame
+     through the pretend server (?fake-sync), signing in through the real form.
+     Run with: py tools/run_tests.py tools/smoke.html -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Gym smoke test</title></head>
+<body>
+<pre id="out">running…</pre>
+<iframe id="f" title="app" style="width:390px;height:844px;border:0"></iframe>
+<iframe id="g" title="phone" style="width:390px;height:844px;border:0"></iframe>
+<script type="module">
+import { FAKE_ACCOUNTS } from '../src/data/fake-backend.js';
+
+const f = document.getElementById('f');
+const g = document.getElementById('g');
+const log = [];
+const check = (name, cond) => log.push({ name, ok: !!cond });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(fn, what, ms = 4000) {
+  for (const t = Date.now(); Date.now() - t < ms; await sleep(30)) {
+    const v = fn();
+    if (v) return v;
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+// Every page gets a yes to its confirm(): a real dialog would stall the test.
+const go = (fr, url) => new Promise((r) => {
+  fr.addEventListener('load', () => { fr.contentWindow.confirm = () => true; r(); }, { once: true });
+  fr.src = url;
+});
+const $ = (sel, fr = f) => fr.contentDocument.querySelector(sel);
+const $$ = (sel, fr = f) => [...fr.contentDocument.querySelectorAll(sel)];
+const text = (sel, fr = f) => ($(sel, fr) ? $(sel, fr).textContent.replace(/\s+/g, ' ').trim() : '');
+const saved = (key = 'gym:demo') => JSON.parse(f.contentWindow.localStorage.getItem(key));
+const open = () => Object.values(saved().sessions).find((x) => x.open);
+
+try {
+  await go(f, '../src/index.html?demo&reset&today=2026-10-16');
+  f.contentWindow.localStorage.removeItem('gym:rest');
+  await until(() => $('.home'), 'the home screen');
+  // Demo: ten workouts every other day, the last (Wed 14 Oct) a legs day.
+  check('next up follows the rotation', text('.feature h1') === 'Chest, Shoulders & Triceps');
+  check('it says when that day was last done', text('.feature .s') === 'Last time Sat 10 Oct · 5 exercises');
+  check('the week counts its workouts', text('.week') === '2 workouts this week');
+
+  $('.feature [data-act=start]').click();
+  await until(() => $('.workout.live'), 'the workout screen');
+  check('the workout is laid out like last time', $$('.ex-name .t').map((e) => e.textContent).join(',') ===
+    'Incline DB Chest Press,Chest Flat Fly’s,Bent-over Fly’s,Military Press,Cable Face Pulls');
+  check('every set is pre-filled with last time', $('input[data-f=r][data-i="0"][data-j="0"]').value === '15' &&
+    $('input[data-f=kg][data-i="0"][data-j="0"]').value === '18');
+  check('"last time" is shown above the sets', text('.item .last') === 'Last · Sat 10 Oct: 15 × 18 · 12 × 20 · 12 × 22');
+  check('the superset is one card', $$('.ex.superset').length === 1 && $$('.ex.superset .item').length === 2);
+
+  $('[data-act=step][data-f=kg][data-d="1"][data-i="0"][data-j="0"]').click();
+  check('+ on kg goes to the next weight used', $('input[data-f=kg][data-i="0"][data-j="0"]').value === '20');
+  $('[data-act=step][data-f=r][data-d="1"][data-i="0"][data-j="0"]').click();
+  check('+ on reps adds one', $('input[data-f=r][data-i="0"][data-j="0"]').value === '16');
+
+  $('[data-act=tick][data-i="0"][data-j="0"]').click();
+  check('a ticked set shows done', $('.set.done'));
+  const bar = f.contentDocument.querySelector('.rest');
+  check('the rest timer starts at 1:30', bar && !bar.hidden && /^1:(30|29)$/.test(bar.querySelector('.v').textContent));
+  bar.querySelector('[data-r="15"]').click();
+  check('+15 adds to the rest', /^1:(45|44)$/.test(bar.querySelector('.v').textContent));
+  check('the day is marked for Life Hub', saved().history['2026-10-16'] && saved().history['2026-10-16'].firstAt);
+
+  bar.querySelector('[data-r=skip]').click();
+  $('[data-act=tick][data-i="1"][data-j="0"]').click();
+  check('half a superset round: no rest yet', bar.hidden);
+  $('[data-act=tick][data-i="2"][data-j="0"]').click();
+  check('the round done: rest', !bar.hidden);
+
+  // Typing, as on the phone's number pad (a comma).
+  const box = $('input[data-f=kg][data-i="3"][data-j="0"]');
+  box.focus();
+  box.value = '22,5';
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+  box.blur();
+  await until(() => open().items[3].sets[0].kg === 22.5, 'the typed weight is saved');
+  await until(() => $('input[data-f=kg][data-i="3"][data-j="0"]').value === '22.5', 'and shown with a point');
+  check('a typed weight with a comma counts', true);
+
+  $('.add-set[data-i="4"]').click();
+  check('+ Set copies the last set', $$('.item')[4].querySelectorAll('.set').length === 4 &&
+    $('input[data-f=r][data-i="4"][data-j="3"]').value === '12');
+
+  $('[data-act=add-ex]').click();
+  const q = f.contentDocument.querySelector('.sheet [name=q]');
+  q.value = 'Dips';
+  q.dispatchEvent(new Event('input'));
+  f.contentDocument.querySelector('.sheet [data-s=new]').click();
+  check('a new exercise can be added on the spot', $$('.ex-name .t').pop().textContent === 'Dips');
+
+  $('[data-act=finish]').click();
+  await until(() => $('.home'), 'back home');
+  const done = Object.values(saved().sessions).find((x) => x.day === '2026-10-16');
+  check('finishing keeps only the ticked sets', done && !done.open && done.items.map((it) => it.sets.length).join() === '1,1,1');
+  check('next up moves on', text('.feature h1') === 'Back & Biceps');
+  check('the rest timer is gone', f.contentDocument.querySelector('.rest').hidden);
+
+  // History and an exercise.
+  $('a[href="#/history"]').click();
+  await until(() => $('.history'), 'the history');
+  const s = $('.history .search');
+  s.value = 'squat';
+  s.dispatchEvent(new Event('input'));
+  check('the filter finds the exercise', $$('.ex-hits [data-search]:not([hidden])').length === 1);
+  $('.ex-hits [data-search]:not([hidden])').click();
+  await until(() => $('.exercise'), 'the exercise screen');
+  check('the exercise screen lists every time it was done', $$('.exercise .sess').length === 4 && /Best since Sep 2026/.test(text('.tiles')));
+
+  // ---- two devices through the pretend server --------------------------------
+  const [fred] = FAKE_ACCOUNTS;
+  f.contentWindow.localStorage.removeItem('gym:fake-server');
+  for (const k of ['gym:fake:laptop', 'gym:fake:laptop:sync', 'gym:fake-session:laptop', 'gym:fake:phone', 'gym:fake:phone:sync', 'gym:fake-session:phone']) {
+    f.contentWindow.localStorage.removeItem(k);
+  }
+  async function signIn(fr) {
+    await until(() => $('.signin:not([hidden]) form', fr), 'the sign-in form');
+    const form = $('.signin form', fr);
+    form.email.value = fred.email;
+    form.password.value = fred.password;
+    form.requestSubmit();
+  }
+  await go(f, '../src/index.html?fake-sync=laptop&today=2026-10-16');
+  await signIn(f);
+  await until(() => $('[data-act=start-fresh]'), 'the offer to start');
+  $('[data-act=start-fresh]').click();
+  await until(() => $('.home'), 'the laptop home screen');
+  await until(() => (JSON.parse(f.contentWindow.localStorage.getItem('gym:fake-server') || '{}')['fake-fred'] || {}).main, 'the log online');
+  check('the laptop puts its log online', true);
+
+  await go(g, '../src/index.html?fake-sync=phone&today=2026-10-16');
+  await signIn(g);
+  await until(() => $('.home', g), 'the phone home screen');
+  check('the phone gets the same log', text('.feature h1', g) === text('.feature h1'));
+  $('.feature [data-act=start]', g).click();
+  await until(() => $('.workout.live', g), 'the phone workout');
+  if (!$('[data-act=tick]', g)) {
+    // An empty log (no Notes import here): add an exercise first.
+    $('[data-act=add-ex]', g).click();
+    const q2 = g.contentDocument.querySelector('.sheet [name=q]');
+    q2.value = 'Squats';
+    q2.dispatchEvent(new Event('input'));
+    g.contentDocument.querySelector('.sheet [data-s=new]').click();
+  }
+  $('[data-act=tick]', g).click();
+  await until(() => {
+    const st = JSON.parse(f.contentWindow.localStorage.getItem('gym:fake:laptop') || 'null');
+    return st && Object.values(st.sessions).some((x) => x.open && x.items.some((it) => it.sets.some((z) => z.done)));
+  }, 'the laptop to see the phone’s ticked set');
+  check('a set ticked on the phone reaches the laptop', true);
+  check('the sync dot shows in step', $('.sync.on', g) || $('.sync.wait', g));
+} catch (e) {
+  log.push({ name: e.message, ok: false });
+}
+
+const failed = log.filter((x) => !x.ok);
+document.getElementById('out').textContent = `${failed.length ? 'FAIL' : 'PASS'} ${log.length - failed.length}/${log.length}\n` +
+  failed.map((x) => `✗ ${x.name}`).join('\n');
+</script>
+</body>
+</html>

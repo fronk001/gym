@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- Checks the real Firebase SDK against src/data/firebase.js without any
+     account: the CDN modules load under the app's own name, auth starts
+     signed out, and Firestore accepts the exact writes the app sends (the
+     first upload, workouts as strings, days with dashes, deletions).
+     Needs an internet connection.
+     Run with: py tools/run_tests.py tools/firebase-check.html -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Firebase check</title></head>
+<body>
+<pre id="out">running…</pre>
+<script type="module">
+import { firebaseBackend } from '../src/data/firebase.js';
+import { diff, patchesFor, toDocs } from '../src/core/sync.js';
+import { buildDemo } from '../src/data/demo.js';
+import * as W from '../src/core/workout.js';
+
+const log = [];
+const check = (name, cond) => log.push({ name, ok: !!cond });
+let done = false;
+(async () => { while (!done) await fetch('/__wait').catch(() => {}); })();
+
+try {
+  // A made-up project: nothing here talks to a real database.
+  const b = firebaseBackend({ apiKey: 'check-only', projectId: 'gym-check', appId: '1:1:web:1' });
+  const user = await new Promise((r, no) => b.start(r).catch(no));
+  check('the SDK loads from the CDN and auth starts signed out', user === null);
+
+  const s0 = buildDemo('2026-10-16');
+  let s1 = W.startWorkout(s0, { type: 'push', day: '2026-10-16', now: Date.now(), id: '2026-10-16~check' });
+  s1 = W.toggleSet(s1, '2026-10-16~check', 0, 0, Date.now());
+  const s2 = W.deleteSession(s1, Object.keys(s0.sessions)[0]);
+  const upload = Object.entries(toDocs(s0)).map(([id, data]) => ({ id, data, merge: false }));
+  const patches = patchesFor([...diff(s0, s1), ...diff(s1, s2)], b.DEL);
+  check('the patches carry a workout as a string and a deletion',
+    patches.some((p) => typeof (p.data.sessions || {})['2026-10-16~check'] === 'string') &&
+    patches.some((p) => Object.values(p.data.sessions || {}).includes(b.DEL)));
+  for (const [name, writes] of [['the first upload', upload], ['merge-writes with deletions', patches]]) {
+    let err = null;
+    let p = null;
+    try { p = b.write('check-uid', writes); } catch (e) { err = e; }
+    check(`Firestore accepts ${name}${err ? `: ${err.message}` : ''}`, !err && p && typeof p.then === 'function');
+    if (p) p.catch(() => {});
+  }
+  let listenErr = null;
+  try { b.listen('check-uid', () => {}, () => {})(); } catch (e) { listenErr = e; }
+  check(`listening to the gym folder sets up${listenErr ? `: ${listenErr.message}` : ''}`, !listenErr);
+} catch (e) {
+  log.push({ name: e.message, ok: false });
+}
+
+done = true;
+const failed = log.filter((x) => !x.ok);
+document.getElementById('out').textContent = `${failed.length ? 'FAIL' : 'PASS'} ${log.length - failed.length}/${log.length}\n` +
+  failed.map((x) => `✗ ${x.name}`).join('\n');
+</script>
+</body>
+</html>
