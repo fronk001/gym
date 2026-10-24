@@ -37,7 +37,7 @@ py tools/run_tests.py tools/firebase-check.html  # real Firebase SDK from the CD
 py tools/build.py                          # dist/ = what GitHub Pages publishes (CI runs this too)
 py tools/run_tests.py tools/sw-check.html  # after build.py: offline copy installs, app opens offline
 py tools/import_notes.py                   # import/notes.txt -> src/data/seed.local.js + import/review.html
-py tools/icons.py                          # redraw src/icons/*.png (Pillow; PNGs are committed)
+py tools/icons.py                          # OLD green icon: don't run, it would overwrite the ruby one (see below)
 py tools/shot.py "?demo" "#/history"       # screenshots/desktop.png + phone.png
 ```
 
@@ -72,6 +72,11 @@ src/ui/     app.js (boot, routes, clicks, typing) · views.js (home, workout, hi
 import/     notes.txt (Fred's Notes log as pasted, 16 Oct) + review.html: git-ignored
 tools/      as Life Hub's, plus import_notes.py
 ```
+
+The home-screen icon (ruby dumbbell, "Jewel" family shared with Life Hub,
+Mongolian and Portfolio) is generated in the Life Hub repo, `tools/jewel-icons/`;
+`src/icons/` holds the finished PNGs. A phone keeps the old icon until the
+home-screen shortcut is removed and added again.
 
 Views are template strings re-rendered whole on every change. All user text
 goes through `esc()`. State changes only via `core/workout.js` → `store.act.*`.
