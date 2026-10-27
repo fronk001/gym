@@ -39,7 +39,12 @@ log that has `incline-db-chest-press`, so not the demo or an empty log).
 Step 2 = the **efficient plan** from Fred's routine review (Life Hub's memory,
 "Gym Routine Upgrade" report): standing calf raises and Romanian deadlifts are
 new exercises; lateral raises use the existing `db-side-delt-raises`, whose old
-standing note from Notes still shows.
+standing note from Notes still shows. Step 3 (same day): **no pairs in plans**.
+Whether two exercises can be a superset depends on the gym; Fred pairs them
+himself (⋯ → "Superset with next" / "Leave superset", copied to the next
+workout). Step 3 swaps a paired plan for `UNPAIRED` unless a workout was
+already started from it (his Legs of 27 Oct was: that day kept its pairs).
+Without pairs the plan is about 69 min a visit (3 min a set), Fred's choice.
 
 ## Run
 
