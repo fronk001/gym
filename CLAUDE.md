@@ -25,9 +25,11 @@ Three days in rotation: **Legs & Abs** → **Chest, Shoulders & Triceps** →
 the last real workout's; the others are one tap away.
 
 **Planned days (27 Oct 2026).** A day may carry `plan: { since, items: [{ ex,
-sets, group?, isNew?, note? }] }` (`pendingPlan`). Until a workout of that day
-is finished on or after `since`, starting it lays out the plan instead of
-copying the last workout: numbers from each exercise's last time (its last n
+sets, group?, isNew?, note? }] }` (`pendingPlan`). Until a workout laid out
+from it is finished (the session's `fromPlan` = the plan's `since`; a workout
+done in an older copy of the app that never saw the plan doesn't count),
+starting that day lays out the plan instead of copying the last workout:
+numbers from each exercise's last time (its last n
 sets, or the last one repeated; none = empty sets), `isNew` items wear a green
 "New" chip, the note is the item's own. Home shows "New plan · n new
 exercises". The finished workout is then "last time" as always, so the next one

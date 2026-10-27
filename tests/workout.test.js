@@ -228,7 +228,11 @@ test('a new plan lays out the next workout of its day, new exercises marked, unt
   eq(x.items[2].sets, [{ r: 6, kg: 90, done: false }, { r: 6, kg: 90, done: false }], 'only in the archive: its numbers');
   eq(x.items[3].sets, [{ r: 8, kg: 9, done: false }], 'a set fewer: the last ones');
 
+  eq(x.fromPlan, '2026-10-13');
   eq(W.pendingPlan(W.deleteSession(a, 'p'), 'push') !== null, true, 'a discarded workout leaves the plan waiting');
+  const old = W.finishWorkout(W.toggleSet(W.startWorkout(log(), { type: 'push', day: '2026-10-16', now: T0, id: 'o' }), 'o', 0, 0, T0), 'o', T0 + 1);
+  old.types = s.types;
+  ok(W.pendingPlan(old, 'push'), 'a push done in an older copy of the app, without the plan, leaves it waiting');
   const b = W.finishWorkout(W.toggleSet(W.toggleSet(a, 'p', 0, 0, T0), 'p', 1, 0, T0), 'p', T0 + 1);
   eq(W.pendingPlan(b, 'push'), null, 'used up once a workout of the day is done');
   const c = W.startWorkout(b, { type: 'push', day: '2026-10-19', now: T0, id: 'q' });

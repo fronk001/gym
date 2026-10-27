@@ -220,12 +220,13 @@ const freshSets = (sets, open) => (sets || []).map((st) => {
 });
 
 // A day's new plan (types[].plan = { since, items: [{ ex, sets, group?, isNew?, note? }] }),
-// until a workout of that day is done on or after `since`. From then on that
-// workout is the "last time" the next one copies, as always.
+// until a workout laid out from it is done (`fromPlan` = its `since`). From
+// then on that workout is the "last time" the next one copies, as always. A
+// workout done in an older copy of the app, which never saw the plan, leaves it waiting.
 export function pendingPlan(s, type) {
   const plan = (typeOf(s, type) || {}).plan;
   if (!plan) return null;
-  const done = sessionList(s).some((x) => counts(x) && !x.open && x.type === type && x.day >= plan.since && x.items.length);
+  const done = sessionList(s).some((x) => counts(x) && !x.open && x.type === type && x.fromPlan === plan.since && x.items.length);
   return done ? null : plan;
 }
 
@@ -263,7 +264,7 @@ export function startWorkout(s, { type, day, now, id = newSessionId(day), live =
         sets: it.sets.length ? freshSets(it.sets, true) : [{ done: false }],
       }))
       : [];
-  next.sessions[id] = { day, type, open: true, startedAt: now, items, ...(live ? {} : { late: true }) };
+  next.sessions[id] = { day, type, open: true, startedAt: now, items, ...(plan ? { fromPlan: plan.since } : {}), ...(live ? {} : { late: true }) };
   // Starting is going: Life Hub ticks Gym for the day straight away (Fred, 16 Oct).
   markDay(next, next.sessions[id], now, live);
   return next;
