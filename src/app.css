@@ -81,6 +81,9 @@ button, a { touch-action: manipulation; }
 
 .chip { padding: 2px 8px; border-radius: 999px; background: var(--amber-tint); color: var(--amber-ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .chip.soft { background: var(--rest); color: var(--neutral-ink); }
+.chip.new { background: var(--green-tint); color: var(--green-dark); }
+.feature .plan .chip.new { background: var(--on-green); }
+.day-row .s.plan { color: var(--green); font-weight: 600; }
 .chip-btn {
   min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card);
   font-size: 14px; font-weight: 600; cursor: pointer;

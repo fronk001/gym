@@ -24,6 +24,21 @@ Three days in rotation: **Legs & Abs** → **Chest, Shoulders & Triceps** →
 **Back & Biceps** (`types`, ids `legs push pull`). Home suggests the day after
 the last real workout's; the others are one tap away.
 
+**Planned days (27 Oct 2026).** A day may carry `plan: { since, items: [{ ex,
+sets, group?, isNew?, note? }] }` (`pendingPlan`). Until a workout of that day
+is finished on or after `since`, starting it lays out the plan instead of
+copying the last workout: numbers from each exercise's last time (its last n
+sets, or the last one repeated; none = empty sets), `isNew` items wear a green
+"New" chip, the note is the item's own. Home shows "New plan · n new
+exercises". The finished workout is then "last time" as always, so the next one
+copies it without the marks. Plans reach Fred's live log through
+`core/migrate.js` (Life Hub's pattern: pure, idempotent, bump VERSION; only a
+log that has `incline-db-chest-press`, so not the demo or an empty log).
+Step 2 = the **efficient plan** from Fred's routine review (Life Hub's memory,
+"Gym Routine Upgrade" report): standing calf raises and Romanian deadlifts are
+new exercises; lateral raises use the existing `db-side-delt-raises`, whose old
+standing note from Notes still shows.
+
 ## Run
 
 No Node on this machine. Python 3.14 (`py`) + the browser do everything.
@@ -61,7 +76,8 @@ and run all the tests first.
 ## Layout
 
 ```
-src/core/   workout.js (the log: rotation, last time, start/finish, PRs, weight steps, supersets)
+src/core/   workout.js (the log: rotation, last time, start/finish, plans, PRs, weight steps, supersets)
+            migrate.js (brings older logs up to date, e.g. a new plan) ·
             rest.js (rest timer maths) · sync.js (online layout) · dates.js (Life Hub's copy)
 src/data/   store.js (URL switches, backend, actions API) · engine.js (Life Hub's, unchanged
             but for the header) · firebase.js · firebase-config.js (Life Hub's project) ·

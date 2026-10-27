@@ -3,11 +3,13 @@
 // calls these only through data/store.js.
 //
 // State (localStorage `gym:v1`, online users/{uid}/gym/, see sync.js):
-//   types      the three training days, in rotation order
+//   types      the three training days, in rotation order; a day may carry a
+//              new `plan` for its next workout (pendingPlan, core/migrate.js)
 //   exercises  { [id]: { name, setting?, note?, rest?, kind? } }
 //              kind: 'assisted' = the kg helps (assisted pull-ups): less is harder
 //   sessions   { [id]: { day, type, label?, archive?, open?, startedAt?, doneAt?, items } }
-//              id = `${day}~${random}`; items = [{ ex, group?, note?, sets: [{ r?, kg?, note?, done? }] }]
+//              id = `${day}~${random}`; items = [{ ex, group?, note?, isNew?, sets: [{ r?, kg?, note?, done? }] }]
+//              isNew: added by a plan, shown as "New" (never copied to the next workout)
 //              open = in progress: only its sets with `done` count. Finishing drops the rest.
 //              archive = the 2022 Notes log: browsable, never "last time" while a newer one exists.
 //   history    { [day]: { firstAt, lastAt } | { added } } the days trained, which Life Hub reads
@@ -217,20 +219,50 @@ const freshSets = (sets, open) => (sets || []).map((st) => {
   return out;
 });
 
+// A day's new plan (types[].plan = { since, items: [{ ex, sets, group?, isNew?, note? }] }),
+// until a workout of that day is done on or after `since`. From then on that
+// workout is the "last time" the next one copies, as always.
+export function pendingPlan(s, type) {
+  const plan = (typeOf(s, type) || {}).plan;
+  if (!plan) return null;
+  const done = sessionList(s).some((x) => counts(x) && !x.open && x.type === type && x.day >= plan.since && x.items.length);
+  return done ? null : plan;
+}
+
+// `n` sets from an exercise's last time: its last n, or the last one repeated.
+function fitSets(sets, n) {
+  if (!sets.length) return Array.from({ length: n }, () => ({ done: false }));
+  if (sets.length >= n) return sets.slice(sets.length - n);
+  return [...sets, ...Array.from({ length: n - sets.length }, () => ({ ...sets[sets.length - 1] }))];
+}
+
 // A new workout of `type` on `day`, laid out like the last one of that type:
 // same exercises, same order, supersets kept, every set pre-filled with what
-// was done, nothing ticked. `live`: being done now (else logged afterwards).
+// was done, nothing ticked. A pending plan lays it out instead, its numbers
+// from each exercise's last time. `live`: being done now (else logged afterwards).
 export function startWorkout(s, { type, day, now, id = newSessionId(day), live = true }) {
   const next = clone(s);
   const prev = lastOfType(s, type);
-  const items = prev
-    ? prev.items.filter((it) => next.exercises[it.ex]).map((it) => ({
-      ex: it.ex,
-      ...(it.group ? { group: it.group } : {}),
-      // An exercise done without numbers (abs) still gets a set to tick.
-      sets: it.sets.length ? freshSets(it.sets, true) : [{ done: false }],
-    }))
-    : [];
+  const plan = pendingPlan(s, type);
+  const items = plan
+    ? plan.items.filter((p) => next.exercises[p.ex]).map((p) => {
+      const last = lastTime(s, p.ex);
+      return {
+        ex: p.ex,
+        ...(p.group ? { group: p.group } : {}),
+        ...(p.isNew ? { isNew: true } : {}),
+        ...(p.note ? { note: p.note } : {}),
+        sets: fitSets(last ? freshSets(last.item.sets, true) : [], p.sets),
+      };
+    })
+    : prev
+      ? prev.items.filter((it) => next.exercises[it.ex]).map((it) => ({
+        ex: it.ex,
+        ...(it.group ? { group: it.group } : {}),
+        // An exercise done without numbers (abs) still gets a set to tick.
+        sets: it.sets.length ? freshSets(it.sets, true) : [{ done: false }],
+      }))
+      : [];
   next.sessions[id] = { day, type, open: true, startedAt: now, items, ...(live ? {} : { late: true }) };
   // Starting is going: Life Hub ticks Gym for the day straight away (Fred, 16 Oct).
   markDay(next, next.sessions[id], now, live);

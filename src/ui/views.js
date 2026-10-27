@@ -6,7 +6,7 @@
 //   exercise  one exercise over time
 
 import {
-  best, countedSets, exerciseHistory, lastOfType, lastTime, nextType, openSession, prIndex,
+  best, countedSets, exerciseHistory, lastOfType, lastTime, nextType, openSession, pendingPlan, prIndex,
   sessionList, typeOf, weekCount,
 } from '../core/workout.js';
 import { monthName } from '../core/dates.js';
@@ -29,18 +29,22 @@ function top(sync, back = null) {
 function dayCard(s, t, day, first) {
   const last = lastOfType(s, t.id);
   const when = last ? `Last time ${dayLabel(last.day, day)} · ${exCount(last)} ${plural(exCount(last), 'exercise')}` : 'Not done yet';
+  const plan = pendingPlan(s, t.id);
+  const fresh = plan ? plan.items.filter((p) => p.isNew).length : 0;
+  const planLine = plan ? `New plan${fresh ? ` · ${fresh} new ${plural(fresh, 'exercise')}` : ''}` : '';
   if (first) {
     return `
     <section class="feature">
       <div class="eyebrow">Next up</div>
       <h1>${esc(t.name)}</h1>
       <p class="s">${when}</p>
+      ${plan ? `<p class="s plan"><span class="chip new">${planLine}</span></p>` : ''}
       <button class="btn light big" data-act="start" data-type="${t.id}">Start workout</button>
     </section>`;
   }
   return `
   <button class="day-row" data-act="start" data-type="${t.id}">
-    <span class="main"><span class="t">${esc(t.name)}</span><span class="s">${when}</span></span>
+    <span class="main"><span class="t">${esc(t.name)}</span><span class="s">${when}</span>${plan ? `<span class="s plan">${planLine}</span>` : ''}</span>
     <span class="go">Start ${CHEVRON}</span>
   </button>`;
 }
@@ -130,7 +134,7 @@ function itemHtml(s, x, i, day, ui) {
   <div class="item">
     <div class="item-h">
       <button class="ex-name" data-act="ex-menu" data-i="${i}">
-        <span class="t">${esc(e.name)}</span>${e.setting ? `<span class="chip">${esc(e.setting)}</span>` : ''}${e.kind === 'assisted' ? '<span class="chip soft">assisted</span>' : ''}
+        <span class="t">${esc(e.name)}</span>${it.isNew ? '<span class="chip new">New</span>' : ''}${e.setting ? `<span class="chip">${esc(e.setting)}</span>` : ''}${e.kind === 'assisted' ? '<span class="chip soft">assisted</span>' : ''}
       </button>
       <button class="icon" data-act="ex-menu" data-i="${i}" aria-label="More for ${esc(e.name)}">${MORE}</button>
     </div>

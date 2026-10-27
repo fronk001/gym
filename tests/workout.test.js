@@ -208,6 +208,34 @@ test('this week’s count: days with a real workout, Monday to Sunday', () => {
   eq(W.weekCount(s, '2026-10-11'), 2, 'Fri 9 and Sun 11');
 });
 
+test('a new plan lays out the next workout of its day, new exercises marked, until one is done', () => {
+  const s = log();
+  s.exercises.calves = { name: 'Standing Calf Raises' };
+  s.types.find((t) => t.id === 'push').plan = { since: '2026-10-13', items: [
+    { ex: 'incline', sets: 4, group: 'p1' },
+    { ex: 'calves', sets: 2, group: 'p1', isNew: true, note: 'Knees straight' },
+    { ex: 'bench', sets: 2, isNew: true },
+    { ex: 'bent', sets: 1 },
+    { ex: 'gone', sets: 3 },
+  ] };
+  ok(W.pendingPlan(s, 'push'), 'the push of 11 Oct was before the plan');
+  eq(W.pendingPlan(s, 'pull'), null);
+  const a = W.startWorkout(s, { type: 'push', day: '2026-10-16', now: T0, id: 'p' });
+  const x = a.sessions.p;
+  eq(x.items.map((it) => it.ex), ['incline', 'calves', 'bench', 'bent'], 'the plan’s order; an unknown exercise left out');
+  eq(x.items[0].sets.map((st) => [st.r, st.kg]), [[15, 20], [12, 22], [6, 24], [6, 24]], 'a set more: the last one again');
+  eq(x.items[1], { ex: 'calves', group: 'p1', isNew: true, note: 'Knees straight', sets: [{ done: false }, { done: false }] }, 'never done: empty sets');
+  eq(x.items[2].sets, [{ r: 6, kg: 90, done: false }, { r: 6, kg: 90, done: false }], 'only in the archive: its numbers');
+  eq(x.items[3].sets, [{ r: 8, kg: 9, done: false }], 'a set fewer: the last ones');
+
+  eq(W.pendingPlan(W.deleteSession(a, 'p'), 'push') !== null, true, 'a discarded workout leaves the plan waiting');
+  const b = W.finishWorkout(W.toggleSet(W.toggleSet(a, 'p', 0, 0, T0), 'p', 1, 0, T0), 'p', T0 + 1);
+  eq(W.pendingPlan(b, 'push'), null, 'used up once a workout of the day is done');
+  const c = W.startWorkout(b, { type: 'push', day: '2026-10-19', now: T0, id: 'q' });
+  eq(c.sessions.q.items.map((it) => [it.ex, it.group, !!it.isNew, it.note || '']), [['incline', 'p1', false, ''], ['calves', 'p1', false, '']],
+    'the next one copies the last as always, without the New marks and notes');
+});
+
 test('exercise settings: changed, cleared; the name never goes blank', () => {
   let s = W.updateExercise(log(), 'squats', { setting: ' 5:3 ', rest: 120 });
   eq(s.exercises.squats, { name: 'Squats', setting: '5:3', rest: 120 });

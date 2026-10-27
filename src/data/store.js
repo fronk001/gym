@@ -12,6 +12,7 @@
 
 import * as W from '../core/workout.js';
 import { logicalDay } from '../core/dates.js';
+import { migrate } from '../core/migrate.js';
 import { createEngine } from './engine.js';
 import { firebaseBackend } from './firebase.js';
 import { firebaseConfig } from './firebase-config.js';
@@ -52,7 +53,7 @@ async function backend() {
 let engine = null;
 
 export async function load() {
-  engine = createEngine({ storage: localStorage, key: KEY, backend: await backend(), seed });
+  engine = createEngine({ storage: localStorage, key: KEY, backend: await backend(), seed, upgrade: migrate });
   addEventListener('storage', (e) => engine.receive(e));
   return engine.load({ reset: params.has('reset') });
 }
